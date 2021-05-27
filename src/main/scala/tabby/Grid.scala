@@ -8,31 +8,66 @@ object Grid:
   
   val defaultDelim = '\t'
   val defaultEnc = "UTF-8"
+  val iso8859Enc = "ISO-8859-1"
   val defaultHeadingShowSep = '-'
   val defaultColShowSep = '|'
+
+  object Lines:  
+    def fromFile(path: String, enc: String = defaultEnc): Vector[String] =
+      val source = scala.io.Source.fromFile(path, enc)
+      try source.getLines.toVector finally source.close()
+
+    def fromURL(url: String, enc: String = defaultEnc): Vector[String] =
+      val source = scala.io.Source.fromURL(url, enc)
+      try source.getLines.toVector finally source.close()
   
   extension (text: String)
-    def toFile(file: String, enc: String = defaultEnc): Unit = 
-      val path = java.nio.file.Paths.get(file)
-      val _ = java.nio.file.Files.write(path, text.getBytes(enc))
+    def toFile(path: String, enc: String = defaultEnc): Unit = 
+      val p = java.nio.file.Paths.get(path)
+      val _ = java.nio.file.Files.write(p, text.getBytes(enc))
     
-  def fromLines(lines: Vector[String], delim: Char = defaultDelim) =
-    val headings = lines(0).split(delim).toVector.map(_.trim.toLowerCase)
-    val data = lines.drop(1).map(_.split(delim).toVector
+    def stripQuotesIfNoDelim(delim: Char = defaultDelim): String = 
+      if text.size >= 2 && text.head == '"' && text.last == '"' && !text.contains(delim)
+      then text.substring(1,text.length - 1) 
+      else text
+
+    def splitUnquoted(delim: Char = defaultDelim): Vector[String] = 
+      var start = 0
+      var isInsideQuotes = false
+      var i = 0
+      val result = scala.collection.mutable.ArrayBuffer.empty[String]
+      while i < text.length do 
+        if text.charAt(i) == '"' then isInsideQuotes = !isInsideQuotes //toggle  
+        else if text.charAt(i) == delim && !isInsideQuotes then 
+          result += text.substring(start, i)
+          start = i + 1
+        i += 1
+      result += text.substring(start) //add last
+      result.map(_.stripQuotesIfNoDelim(delim)).toVector  // remove unwanted ""
+    
+  def fromLines(lines: Vector[String], delim: Char = defaultDelim): Grid =
+    val headings = lines(0).splitUnquoted(delim).toVector.map(_.trim)
+    val data = lines.drop(1).map(_.splitUnquoted(delim).toVector
       .take(headings.length).padTo(headings.length,""))
     Grid(headings, data)
 
-  object Lines:  
-    def fromFile(file: String, enc: String = defaultEnc): Vector[String] =
-      val source = scala.io.Source.fromFile(file, enc)
-      try source.getLines.toVector finally source.close()
+  def fromFile(path: String, delim: Char = defaultDelim, enc: String = defaultEnc): Grid = 
+    fromLines(Lines.fromFile(path, enc), delim)
 
-  def fromFile(
-    file: String, 
-    delim: Char = defaultDelim, 
-    enc: String = defaultEnc
-  ): Grid = fromLines(Lines.fromFile(file, enc), delim)
-  
+  def fromURL(url: String, delim: Char = defaultDelim, enc: String = defaultEnc): Grid = 
+    fromLines(Lines.fromURL(url, enc), delim)
+
+  val empty: Grid = Grid(Vector(),Vector())
+
+  def apply(headings: String*)(values: Any*): Grid = 
+    val n = headings.length
+    val extra = values.length % n
+    val missing = if extra == 0 then 0 else n - extra
+    val strings = values.map(_.toString)
+    val padded = if missing == 0 then strings else strings.padTo(strings.length + missing, "") 
+    val data = padded.map(_.toString).sliding(n,n).map(_.toVector)
+    Grid(headings.toVector, data.toVector)
+
 case class Grid(headings: Grid.Row, data: Grid.Matrix):
   import Grid._
   
@@ -84,8 +119,19 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
 
   def sortBy[T: Ordering](f: Row => T): Grid = copy(data = data.sortBy(f))
 
-  def mapCol(colName: String)(f: RowMap => String): Grid =
+  def updateCol(colName: String)(f: RowMap => String): Grid =
     Grid(headings, data.indices.map(r => data(r).updated(indexOf(colName), f(rowMap(r)))).toVector)
+  
+  def updateHeadings(f: String => String): Grid = copy(headings = headings.map(f))
+
+  def updateValues(f: String => String): Grid = copy(data = data.map(xs => xs.map(f)))
+
+  def mapRows[T](f: RowMap => T): Vector[T] =
+    data.indices.map(r => f(rowMap(r))).toVector
+  
+  def mapHeadings[T](f: String => T): Vector[T] = headings.map(f).toVector
+  
+  def mapValues[T](f: String => T): Vector[Vector[T]] = data.map(xs => xs.map(f))
 
   def sumIntCol(colName: String): Int = 
     apply(colName).map(_.toIntOption.getOrElse(0)).sum
@@ -140,6 +186,7 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
 
   def trim: Grid = copy(data = data.map(r => r.map(_.trim)))
 
+  // TODO: IS THIS REALLY NEEDED WHEN ASSERTED THAT EQUAL COL LENGTHS ???
   lazy val maxLengths: Vector[Int] = headings.map(h => (apply(h).map(_.size) :+ h.size).max)
 
   lazy val maxLengthOf: Map[String, Int] = (headings zip maxLengths).toMap
@@ -159,10 +206,10 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
   lazy val show: String =
     s"$hline$showHeadings\n$hline$showData"//\n$hline  dim = (nRows, nCols) = ($nRows, $nCols)"
     
-  /** Pretty-printing suitable for REPL **/
+  /** Pretty-printing suitable for use in REPL. **/
   def pp: Unit = println(show)
 
-  /** Trimmed pretty-printing suitable for REPL **/
+  /** Trimmed pretty-printing suitable for use in REPL. **/
   def pp(maxWidth: Int): Unit =
     println(show.split('\n').map(_.take(maxWidth)).mkString("\n"))
 
@@ -170,8 +217,8 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
     headings.mkString("",delim.toString,"\n") +
       data.map(_.mkString("", delim.toString, "\n")).mkString
 
-  def toFile(file: String, delim: Char = defaultDelim, enc: String = defaultEnc): Unit = 
-    toText(delim).toFile(file, enc)
+  def toFile(path: String, delim: Char = defaultDelim, enc: String = defaultEnc): Unit = 
+    toText(delim).toFile(path, enc)
 
 
 
