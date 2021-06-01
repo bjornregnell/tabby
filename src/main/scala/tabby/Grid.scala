@@ -46,7 +46,7 @@ object Grid:
       result.map(_.stripQuotesIfNoDelim(delim)).toVector  // remove unwanted ""
     
   def fromLines(lines: Vector[String], delim: Char = defaultDelim): Grid =
-    val headings = lines(0).splitUnquoted(delim).toVector.map(_.trim)
+    val headings = lines(0).splitUnquoted(delim).toVector
     val data = lines.drop(1).map(_.splitUnquoted(delim).toVector
       .take(headings.length).padTo(headings.length,""))
     Grid(headings, data)
@@ -77,21 +77,24 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
   lazy val dim = (data.size, headings.size)
   lazy val (nRows, nCols) = dim
 
-  lazy val indexOf: Map[String, Int] = headings.zipWithIndex.toMap
+  lazy val colIndex: Map[String, Int] = headings.zipWithIndex.toMap
   private def mkRowMap(row: Int): RowMap = headings.map(h => (h, apply(row)(h))).toMap
   lazy val rowMap: Vector[RowMap] = data.indices.toVector.map(mkRowMap)
 
-  def apply(row: Int)(colName: String): String = data(row)(indexOf(colName))
-  def apply(colName: String): Col = data.map(row => row(indexOf(colName)))
+  def apply(row: Int)(colName: String): String = data(row)(colIndex(colName))
+  def apply(colName: String): Col = data.map(row => row(colIndex(colName)))
   def apply(row: Int, col: Int): String = data(row)(col)
 
-  def get(row: Int)(colName: String): Option[String] = data.lift(row).flatMap(_.lift(indexOf(colName)))
+  def get(row: Int)(colName: String): Option[String] = data.lift(row).flatMap(_.lift(colIndex(colName)))
   def get(colName: String): Option[Vector[String]] = scala.util.Try(apply(colName)).toOption
   def get(row: Int, col: Int): Option[String] = data.lift(row).flatMap(_.lift(col))
 
-  def updated(row: Int, colName: String, newValue: String): Grid =
-    copy(data = data.updated(row, data(row).updated(indexOf(colName), newValue)))
+  def updated(row: Int, col: Int, newValue: String): Grid =
+    copy(data = data.updated(row, data(row).updated(col, newValue)))
 
+  def updated(row: Int, colName: String, newValue: String): Grid =
+    updated(row, colIndex(colName), newValue)
+  
   def isDistinct(colNames: String*): Boolean =
     colNames.forall{ c => val values = apply(c); values.distinct == values }
 
@@ -106,7 +109,7 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
     }.toMap
 
   def filter(colName: String)(p: String => Boolean): Grid =
-    copy(data = data.filter(row => p(row(indexOf(colName)))))
+    copy(data = data.filter(row => p(row(colIndex(colName)))))
 
   def lookUp(colName: String)(rowValueInCol: String): Grid = 
     filter(colName)(_ == rowValueInCol)
@@ -115,12 +118,12 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
       copy(data = (for (i <- data.indices if p(rowMap(i))) yield data(i)).toVector)
 
   def sorted(colName: String = headings(0)): Grid =
-    copy(data = data.sortBy(row => row.lift(indexOf(colName)).getOrElse("")))
+    copy(data = data.sortBy(row => row.lift(colIndex(colName)).getOrElse("")))
 
   def sortBy[T: Ordering](f: Row => T): Grid = copy(data = data.sortBy(f))
 
   def updateCol(colName: String)(f: RowMap => String): Grid =
-    Grid(headings, data.indices.map(r => data(r).updated(indexOf(colName), f(rowMap(r)))).toVector)
+    Grid(headings, data.indices.map(r => data(r).updated(colIndex(colName), f(rowMap(r)))).toVector)
   
   def updateHeadings(f: String => String): Grid = copy(headings = headings.map(f))
 
@@ -173,6 +176,8 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
     Grid(headings = common, data = keep(common:_*).data ++ that.keep(common:_*).data)
  
   def find(p: RowMap => Boolean): Option[RowMap] = data.indices.map(rowMap).find(p)
+  def indexOf(p: RowMap => Boolean): Int = data.indices.map(rowMap).indexOf(p)
+  def count(p: RowMap => Boolean): Int = data.indices.map(rowMap).count(p)
 
   def rename(colNamePairs: (String,String)*): Grid = 
     val renameMap = colNamePairs.toMap
@@ -181,10 +186,10 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
   def values: Map[String, Col] = headings.map(h => (h, apply(h).distinct)).toMap
 
   def replaceBy(colName: String)(f: String => String): Grid = 
-    val i = indexOf(colName)
+    val i = colIndex(colName)
     copy(data=data.map(r => r.updated(i, f(r(i)))))
 
-  def trim: Grid = copy(data = data.map(r => r.map(_.trim)))
+  def trim: Grid = copy(headings.map(_.trim), data.map(r => r.map(_.trim)))
 
   // TODO: IS THIS REALLY NEEDED WHEN ASSERTED THAT EQUAL COL LENGTHS ???
   lazy val maxLengths: Vector[Int] = headings.map(h => (apply(h).map(_.size) :+ h.size).max)

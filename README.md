@@ -4,7 +4,7 @@
 * Use the latest [jar](https://github.com/bjornregnell/tabby/releases).
 * Or let `sbt` download tabby: 
 ```
-val tabbyVer = "0.2.1"
+val tabbyVer = "0.2.2"
 libraryDependencies += "tabby" % "tabby" % tabbyVer from 
   s"https://github.com/bjornregnell/tabby/releases/download/v$tabbyVer/tabby_3-$tabbyVer.jar"
 ```
