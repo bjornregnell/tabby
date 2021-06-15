@@ -147,6 +147,9 @@ case class Grid(headings: Grid.Row, data: Grid.Matrix):
 
   def addCol(colName: String, col: Col): Grid =
     Grid(headings :+ colName, data.indices.map(i => data(i) :+ col(i)).toVector)
+  
+  def addEmptyCols(colNames: String*): Grid =
+    Grid(headings ++ colNames, data.indices.map(i => data(i) ++ Vector.fill(colNames.size)("")).toVector)
 
   def keep(colNames: String*): Grid = {
     val heads = colNames.toVector
