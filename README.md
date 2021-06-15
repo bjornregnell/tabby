@@ -4,7 +4,17 @@
 * Use the latest [jar](https://github.com/bjornregnell/tabby/releases).
 * Or let `sbt` download tabby: 
 ```
-val tabbyVer = "0.2.2"
+val tabbyVer = "0.2.3"
 libraryDependencies += "tabby" % "tabby" % tabbyVer from 
   s"https://github.com/bjornregnell/tabby/releases/download/v$tabbyVer/tabby_3-$tabbyVer.jar"
 ```
+
+# How to build
+
+`sbt package`
+
+# How to publish
+
+`sbt package` and upload jar to releases of this repo
+
+
