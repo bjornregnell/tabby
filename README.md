@@ -8,7 +8,8 @@ val tabbyVer = "0.2.3"
 libraryDependencies += "tabby" % "tabby" % tabbyVer from 
   s"https://github.com/bjornregnell/tabby/releases/download/v$tabbyVer/tabby_3-$tabbyVer.jar"
 ```
-* The Scala version in your build should `3.0.0` or higher, as in `scalaVersion := "3.0.2"`
+  * The Scala version in your `build.sbt` should be `scalaVersion := "3.0.2"` or higher
+  * The sbt version in your in your `project/build.properties` shoulb be `sbt.version=1.5.5` or higher  
 
 # How to build
 
