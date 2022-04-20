@@ -25,7 +25,7 @@ libraryDependencies += "tabby" % "tabby" % tabbyVer from
 
 * The sbt version in your in your `project/build.properties` should be `sbt.version=1.5.5` or higher  
 
-Or download the jar yourself [jar](https://github.com/bjornregnell/tabby/releases) and put it on your classpath manually.
+Or download the [jar](https://github.com/bjornregnell/tabby/releases) and put it on your classpath manually.
 
 
 
